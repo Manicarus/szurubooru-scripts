@@ -1,5 +1,8 @@
 import argparse
 import configparser
+import appdirs
+import os
+import shutil
 from distutils.util import strtobool
 
 class UserInput:
@@ -39,10 +42,23 @@ class UserInput:
         """
         Parse the user config and set the object attributes accordingly.
         """
-
+        
+        appname = 'szuru-toolkit'
+        config_file = 'config.ini'
+        
+        try:
+            virtual_env = os.environ['VIRTUAL_ENV']
+            config_dir = os.path.join(virtual_env, 'config', appname)
+        except:
+            config_dir = appdirs.user_config_dir(appname)
+        config_path = os.path.join(config_dir, config_file)
+        
+        if not os.path.isfile(config_path):
+            print('Could not find configuration file:', config_path)
+        
         config = configparser.ConfigParser()
+        config.read(config_path)
 
-        config.read('config')
         self.booru_address   = config['szurubooru']['address']
         self.booru_api_url   = self.booru_address + '/api'
         self.booru_api_token = config['szurubooru']['api_token']
