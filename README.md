@@ -1,21 +1,21 @@
-# szurubooru-scripts
+# szurubooru-scripts(AKA szuru-toolkit)
 Simplify your file uploads and automatically tag your posts.
 
 ## Installation
 
 Under virtual environment:
 
-`python -m pip install <szurubooru-script-directory>` 
+`python -m pip install <szurubooru-script-directory>`
 
-If you want to install szuru-toolkit editable mode(developer mode):
+If you want to install szuru-toolkit in editable mode(developer mode):
 
-`python -m pip install -e <szurubooru-script-directory>` 
+`python -m pip install -e <szurubooru-script-directory>`
 
 In order to undo the installation:
 
 `python -m pip uninstall szuru-toolkit`
 
-## image_uploader
+## image_uploader(AKA szuru-upload)
 This script searches through your specified upload folder in the config file for any image/video files and uploads them to your booru.
 After the upload has been completed, the script attempts to delete empty directories under your upload directory.
 
@@ -26,15 +26,11 @@ We can just call the executable:
 `szuru-upload`
 
 It will be terminated with some errors stating that it needs a configuration file in a certain location.
-You can copy and paste the given config.ini to the specified path.
+You can copy and paste the given config.ini to the specified directory.
+To elaborate, it will be system's default appdata/configuration folder.
+Check out [appdirs](https://github.com/ActiveState/appdirs) package for more information
 
-In short, if you have created virtual environment using venv, it will be:
-
-`<venv-directory>/config/szuru-toolkit/config.ini`
-
-If you are not using venv, it will be system's default configuration folder.
-
-## auto_tagger
+## auto_tagger(AKA szuru-autotag)
 
 NOTICE: Executable is under development
 
@@ -95,6 +91,16 @@ The actual API Token must be generated with the following command:
 * JSON > INI config file
 * Use SauceNAO instead of IQDB
 * szuru-upload executable
-  - parse arguments for safe/unsafe flag 
-  - parse arguments for specifying source file/directory for uploading images
-  - make it not refer configuration file for uploading images
+  - [x] parse arguments for safe/unsafe flag
+  - [x] parse arguments for specifying source file/directory for uploading images
+  - [x] make it not refer configuration file for uploading images
+  - [x] remove cleanup feature or at least make it configurable
+  - [x] hard link or copy failed-to-upload files to fallback directory
+  - [ ] implement verbose decorator
+  - [ ] investigate pprint
+* szuru-autotag executable
+  - work inside `szuru-autotag` branch
+* rename `config.ini` to `config.ini.sample` to explicitly indicate that it is the sample configuration file
+* merge `packaging` branch to `main` branch
+  - [ ] rebase commits
+* create and checkout new branch `szuru-upload`
