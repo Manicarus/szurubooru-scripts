@@ -2,6 +2,9 @@ import os
 import json
 import shutil
 import requests
+import argparse
+import dryable
+import pprint
 from glob import glob
 from tqdm import tqdm
 from classes.user_input import UserInput
@@ -22,7 +25,7 @@ def get_files(upload_dir):
     allowed_extensions = ['jpg', 'jpeg', 'png', 'mp4', 'webm', 'gif', 'swf']
     files_raw          = list(filter(None, [glob(upload_dir + '/**/*.' + extension, recursive = True) for extension in allowed_extensions]))
     files              = [y for x in files_raw for y in x]
-    
+
     return files
 
 def get_image_token(api, image):
@@ -61,7 +64,7 @@ def check_similarity(api, image_token):
 
     Args:
         image_token: An image token from szurubooru
-    
+
     Returns:
         exact_post: Includes meta data of the post if an exact match was found
         similar_posts: Includes a list with all similar posts
@@ -72,7 +75,7 @@ def check_similarity(api, image_token):
 
     post_url = api.booru_api_url + '/posts/reverse-search'
     metadata = json.dumps({'contentToken': image_token})
-    
+
     try:
         response = requests.post(post_url, headers=api.headers, data=metadata)
 
@@ -81,11 +84,12 @@ def check_similarity(api, image_token):
         else:
             exact_post = response.json()['exactPost']
             similar_posts = response.json()['similarPosts']
-            return exact_post, similar_posts 
+            return exact_post, similar_posts
     except Exception as e:
         print()
         print(f'An error occured during the similarity check: {e}')
 
+@dryable.Dryable(True)
 def upload_file(api, post, file_path):
     """
     Uploads/Moves our temporary image to 'production' with similar posts if any were found.
@@ -99,20 +103,24 @@ def upload_file(api, post, file_path):
         Exception
     """
 
+    success = False
     post_url = api.booru_api_url + '/posts'
-    metadata = json.dumps({'tags': post.tags, 'safety': 'unsafe', 'relations': post.similar_posts, 'contentToken': post.image_token})
+    metadata = json.dumps({'tags': post.tags, 'safety': post.rating, 'relations': post.similar_posts, 'contentToken': post.image_token})
 
     try:
         response = requests.post(post_url, headers=api.headers, data=metadata)
 
         if 'description' in response.json():
             raise Exception(response.json()['description'])
-        else:
-           os.remove(file_path)
+
+        success = True
     except Exception as e:
         print()
         print(f'An error occured during the upload: {e}')
 
+    return success
+
+@dryable.Dryable()
 def cleanup_dirs(dir):
     """
     Remove empty directories recursively from bottom to top
@@ -136,6 +144,7 @@ def cleanup_dirs(dir):
             except OSError:
                 pass
 
+@dryable.Dryable()
 def delete_posts(api, start_id, finish_id):
     """
     If some posts unwanted posts were uploaded, you can delete those within the range of start_id to finish_id.
@@ -153,7 +162,7 @@ def delete_posts(api, start_id, finish_id):
         try:
             response = requests.delete(post_url, headers=api.headers, data=json.dumps({'version': '1'}))
             if 'description' in response.json():
-                raise Exception(response.json()['description']) 
+                raise Exception(response.json()['description'])
         except Exception as e:
             print(f'An error occured while deleting posts: {e}')
 
@@ -165,18 +174,30 @@ def main():
     post       = Post()
     user_input = UserInput()
     user_input.parse_config()
+    user_input.parse_input()
     api        = API(
         booru_address   = user_input.booru_address,
         booru_api_token = user_input.booru_api_token,
         booru_offline   = user_input.booru_offline,
     )
 
-    files_to_upload  = get_files(user_input.upload_dir)
+    user_input.describe()
+
+    files_to_upload = []
+    for source in user_input.source:
+        files_to_upload.extend(get_files(source))
+
+    print()
+    print('Uploading :')
+    pprint.PrettyPrinter().pprint(files_to_upload)
 
     if files_to_upload:
+        print()
         print('Found ' + str(len(files_to_upload)) + ' images. Starting upload...')
 
         for file_to_upload in tqdm(files_to_upload, ncols=80, position=0, leave=False):
+            upload_success = False
+
             with open(file_to_upload, 'rb') as f:
                 post.image = f.read()
 
@@ -185,20 +206,58 @@ def main():
 
             if not post.exact_post:
                 post.tags = user_input.tags
-                post.similar_posts = []        
+                post.rating = user_input.rating
+                post.similar_posts = []
                 for entry in similar_posts:
                     post.similar_posts.append(entry['post']['id'])
-                    
-                upload_file(api, post, file_to_upload)
+                upload_success = upload_file(api, post, file_to_upload)
             else:
-                os.remove(file_to_upload)
+                upload_success = True
 
-        cleanup_dirs(user_input.upload_dir)
+            if upload_success:
+                if user_input.remove:
+                    cleanup_file(file_to_upload)
+            else:
+                failsafe_handling(file_to_upload, user_input.failsafe_path)
 
         print()
         print('Script has finished uploading.')
     else:
         print('No images found to upload.')
+
+@dryable.Dryable()
+def failsafe_handling(file_to_upload, failsafe_path):
+    '''
+    hard link, if possible, otherwise copy the failed-to-upload file to the failsafe directory
+    '''
+    source = file_to_upload
+    filename = os.path.basename(source)
+    dest = os.path.join(failsafe_path, filename)
+
+    # safety check for failsafe directory
+    os.makedirs(failsafe_path, exist_ok=True)
+
+    try:
+        os.link(source, dest)
+
+    except Exception as e:
+        print(f'\nAn error occured while creating hard link: {e}')
+        print('Falling back to copy operation')
+        shutil.copyfile(source, dest)
+
+@dryable.Dryable()
+def cleanup_file(file):
+    """
+    Remove file. Wrapped with dryable decorator.
+
+    Args:
+        file: The single file targeted for deletion
+    """
+
+    os.remove(file)
+
+
+
 
 if __name__ == '__main__':
     main()
