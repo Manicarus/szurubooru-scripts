@@ -223,6 +223,7 @@ def main():
         print()
         print('Script has finished uploading.')
     else:
+        print()
         print('No images found to upload.')
 
 @dryable.Dryable()
@@ -241,7 +242,8 @@ def failsafe_handling(file_to_upload, failsafe_path):
         os.link(source, dest)
 
     except Exception as e:
-        print(f'\nAn error occured while creating hard link: {e}')
+        print()
+        print(f'An error occured while creating hard link: {e}')
         print('Falling back to copy operation')
         shutil.copyfile(source, dest)
 
@@ -255,9 +257,6 @@ def cleanup_file(file):
     """
 
     os.remove(file)
-
-
-
 
 if __name__ == '__main__':
     main()
